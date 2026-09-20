@@ -63,6 +63,12 @@ body {
   letter-spacing: -0.01em;
 }
 
+.nav-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .nav-model {
   color: rgba(255, 255, 255, 0.72);
   font-size: 13px;
@@ -73,6 +79,22 @@ body {
 
 .nav-model-sep {
   color: rgba(255, 255, 255, 0.4);
+}
+
+.nav-github {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.72);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.nav-github:hover {
+  color: var(--white);
+  transform: scale(1.08);
+}
+
+.nav-github:active {
+  transform: scale(0.95);
 }
 
 /* ---------- Hero ---------- */
