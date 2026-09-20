@@ -1,2 +1,2 @@
-# Text-to-Image
+# Text-to-Image - 
 中文小黑怪诞正文配图生成 | 中文手绘技术配图生成
