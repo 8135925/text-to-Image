@@ -1,4 +1,5 @@
-// 结果区：大图展示（点击放大）+ 重新生成 / 复制提示词（spec 2.3）
+// 结果区：当前生成图大图展示（点击放大）+ 重新生成 / 复制提示词（spec 2.3）
+// 左右浏览在历史记录灯箱中（ImageLightbox prev/next），不在结果区
 import { useState } from 'react';
 import type { GenerateSuccess } from '../prompts';
 import ImageLightbox from './ImageLightbox';
@@ -12,8 +13,12 @@ interface Props {
 
 export default function ResultPanel({ result, loading, error, onRetry }: Props) {
   const [imageBroken, setImageBroken] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // 新结果到达时重置破图状态
+  const currentUrl = result?.imageUrl ?? null;
+  if (currentUrl && imageBroken) setImageBroken(false);
 
   const copyPrompt = async () => {
     if (!result) return;
@@ -73,13 +78,6 @@ export default function ResultPanel({ result, loading, error, onRetry }: Props) 
           />
         )}
       </figure>
-      {previewOpen && !imageBroken && (
-        <ImageLightbox
-          src={result.imageUrl}
-          alt="生成结果"
-          onClose={() => setPreviewOpen(false)}
-        />
-      )}
       <div className="result-actions">
         <button
           type="button"
@@ -97,6 +95,14 @@ export default function ResultPanel({ result, loading, error, onRetry }: Props) 
         <summary>查看完整提示词</summary>
         <pre>{result.prompt}</pre>
       </details>
+
+      {previewOpen && !imageBroken && (
+        <ImageLightbox
+          src={result.imageUrl}
+          alt="生成结果"
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </section>
   );
 }

@@ -37,13 +37,17 @@ export default function HistoryGrid({
   onDismissOverflow,
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  // 灯箱浏览：当前下标（在 history 数组内左右切换）
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (history.length === 0) {
     return null;
   }
+
+  const openPreview = (index: number) => setPreviewIndex(index);
+  const closePreview = () => setPreviewIndex(null);
 
   const handleClear = () => {
     if (window.confirm(`确定删除全部 ${history.length} 条历史记录吗？此操作不可恢复。`)) {
@@ -130,7 +134,7 @@ export default function HistoryGrid({
       {importMsg && <p className="history-import-msg">{importMsg}</p>}
 
       <div className="history-grid">
-        {history.map((entry) => (
+        {history.map((entry, index) => (
           <article key={entry.id} className="card history-card">
             <div className="history-thumb">
               <img
@@ -138,7 +142,7 @@ export default function HistoryGrid({
                 alt={entry.text.slice(0, 30)}
                 loading="lazy"
                 title="点击放大查看"
-                onClick={() => setPreviewSrc(entry.imageUrl)}
+                onClick={() => openPreview(index)}
                 onError={(e) => {
                   const el = e.currentTarget;
                   el.style.display = 'none';
@@ -190,11 +194,22 @@ export default function HistoryGrid({
           </article>
         ))}
       </div>
-      {previewSrc && (
+      {previewIndex !== null && history[previewIndex] && (
         <ImageLightbox
-          src={previewSrc}
+          src={history[previewIndex].imageUrl}
           alt="历史图片预览"
-          onClose={() => setPreviewSrc(null)}
+          onClose={closePreview}
+          onPrev={
+            previewIndex > 0
+              ? () => setPreviewIndex((i) => (i === null ? null : i - 1))
+              : undefined
+          }
+          onNext={
+            previewIndex < history.length - 1
+              ? () => setPreviewIndex((i) => (i === null ? null : i + 1))
+              : undefined
+          }
+          position={`${previewIndex + 1} / ${history.length}`}
         />
       )}
     </section>

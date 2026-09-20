@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Nav from './components/Nav';
 import Hero from './components/Hero';
 import ResultPanel from './components/ResultPanel';
+import VideoPanel from './components/VideoPanel';
 import HistoryGrid from './components/HistoryGrid';
 import Footer from './components/Footer';
 import {
@@ -40,6 +41,15 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyOverflow, setHistoryOverflow] = useState(false);
+  // 视频生成状态（cogvideox-flash 异步任务）
+  const [videoState, setVideoState] = useState<
+    'idle' | 'loading' | 'error' | 'done'
+  >('idle');
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoCover, setVideoCover] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
+  const pollCountRef = useRef(0);
   const lastRequestRef = useRef<RequestPayload | null>(null);
 
   useEffect(() => {
@@ -91,6 +101,108 @@ export default function App() {
     void generate({ mode, text: trimmed });
   }, [generate, loading, mode, text]);
 
+  // ---------- 视频生成（cogvideox-flash，异步任务轮询） ----------
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => stopPolling, [stopPolling]);
+
+  const pollTask = useCallback(
+    (taskId: string) => {
+      pollCountRef.current += 1;
+      if (pollCountRef.current > 100) {
+        // 100 次 × 3s = 5 分钟超时
+        stopPolling();
+        setVideoState('error');
+        setVideoError('生成超时（超过 5 分钟），请重试');
+        return;
+      }
+      pollTimerRef.current = window.setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `/api/generate-video?taskId=${encodeURIComponent(taskId)}`,
+          );
+          const data = (await res.json()) as {
+            success: boolean;
+            status?: string;
+            videoUrl?: string;
+            coverUrl?: string;
+            message?: string;
+          };
+          if (!data.success) {
+            stopPolling();
+            setVideoState('error');
+            setVideoError(data.message ?? '视频生成失败');
+            return;
+          }
+          if (data.status === 'FAIL') {
+            stopPolling();
+            setVideoState('error');
+            setVideoError('视频生成失败（内容审核未通过或上游错误），请调整文本后重试');
+            return;
+          }
+          if (data.status === 'SUCCESS' && data.videoUrl) {
+            stopPolling();
+            setVideoUrl(data.videoUrl);
+            setVideoCover(data.coverUrl ?? null);
+            setVideoState('done');
+            return;
+          }
+          pollTask(taskId); // PROCESSING，继续轮询
+        } catch {
+          pollTask(taskId); // 网络抖动，继续轮询
+        }
+      }, 3000);
+    },
+    [stopPolling],
+  );
+
+  const generateVideo = useCallback(async () => {
+    const trimmed = text.trim();
+    if (!trimmed || videoState === 'loading') return;
+    stopPolling();
+    pollCountRef.current = 0;
+    setVideoState('loading');
+    setVideoError(null);
+    setVideoUrl(null);
+    setVideoCover(null);
+    try {
+      const res = await fetch('/api/generate-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, text: trimmed }),
+      });
+      const data = (await res.json()) as {
+        success: boolean;
+        taskId?: string;
+        message?: string;
+      };
+      if (!data.success || !data.taskId) {
+        setVideoState('error');
+        setVideoError(data.message ?? '提交视频任务失败');
+        return;
+      }
+      pollTask(data.taskId);
+    } catch {
+      setVideoState('error');
+      setVideoError('网络异常，请检查连接后重试');
+    }
+  }, [mode, pollTask, stopPolling, text, videoState]);
+
+  const onVideoRetry = useCallback(() => {
+    void generateVideo();
+  }, [generateVideo]);
+
+  const onVideoDismiss = useCallback(() => {
+    stopPolling();
+    setVideoState('idle');
+  }, [stopPolling]);
+
   const onRetry = useCallback(() => {
     if (lastRequestRef.current) void generate(lastRequestRef.current);
   }, [generate]);
@@ -120,7 +232,8 @@ export default function App() {
   const textLen = [...text].length;
   // config 请求异常时按 hasKey=true 处理，由 /api/generate 的 E_NO_KEY 兜底
   const keyOk = config?.hasKey ?? true;
-  const canGenerate = !loading && textLen > 0 && keyOk;
+  // 图片/视频互不阻塞：只要求有文本和 Key，各自的 loading 态单独防重复提交
+  const canGenerate = textLen > 0 && keyOk;
 
   return (
     <div className="app">
@@ -167,28 +280,64 @@ export default function App() {
               ))}
             </div>
 
-            <button
-              type="button"
-              className="btn-generate"
-              onClick={onGenerate}
-              disabled={!canGenerate}
-              aria-busy={loading}
-            >
-              {loading ? '生成中…' : '开始生成'}
-              <span className="btn-generate-arrow" aria-hidden="true">
-                →
-              </span>
-            </button>
+            <div className="ws-generate-group">
+              <button
+                type="button"
+                className="btn-generate"
+                onClick={onGenerate}
+                disabled={!canGenerate || loading}
+                aria-busy={loading}
+              >
+                {loading ? '生成中…' : '开始生成'}
+                <span className="btn-generate-arrow" aria-hidden="true">
+                  →
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`btn-video${videoState === 'loading' ? ' is-loading' : ''}`}
+                onClick={() => void generateVideo()}
+                disabled={!canGenerate || videoState === 'loading'}
+              >
+                {videoState === 'loading' ? (
+                  <>
+                    <span className="btn-video-spinner" aria-hidden="true" />
+                    <span className="btn-video-label">视频生成中</span>
+                    <span className="btn-video-dots" aria-hidden="true">
+                      <i>.</i>
+                      <i>.</i>
+                      <i>.</i>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="btn-video-play" aria-hidden="true" />
+                    生成视频
+                    <span className="btn-video-sub">CogVideoX · 5s</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
-          {/* 右：生成结果 */}
+          {/* 右：生成结果（图片 + 视频） */}
           <div className="ws-result">
-            <ResultPanel
-              result={result}
-              loading={loading}
-              error={error}
-              onRetry={onRetry}
-            />
+            <div className="ws-result-stack">
+              <ResultPanel
+                result={result}
+                loading={loading}
+                error={error}
+                onRetry={onRetry}
+              />
+              <VideoPanel
+                state={videoState}
+                videoUrl={videoUrl}
+                coverUrl={videoCover}
+                error={videoError}
+                onRetry={onVideoRetry}
+                onDismiss={onVideoDismiss}
+              />
+            </div>
           </div>
         </section>
 

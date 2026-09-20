@@ -76,11 +76,15 @@
 5. 简单内存频控：每 IP 60 秒内最多 5 次，超出返回 E_RATE_LIMIT（serverless 实例重置导致频控归零可接受，不引入外部存储）；
 6. **函数超时**：`api/generate.ts` 中显式导出 `export const maxDuration = 30`（Vercel Hobby 计划函数上限 60s，30s 可用；不配置此项则默认 10s，超时形同虚设）。
 
+**视频生成（`api/generate-video.ts`，模型写死 `cogvideox-flash` 免费）**：CogVideoX 为异步任务接口，链路分两步：
+1. `POST /api/generate-video`（入参与图像一致：mode + text）→ 组装视频提示词（用户文本前 420 字 + 手绘风格后缀，≤512 字符）→ 提交上游 `POST {ZHIPU_API_BASE}/videos/generations`（quality=speed、size=1920x1080、fps=30、duration=5）→ 返回 `{ success, taskId, prompt, model }`；
+2. `GET /api/generate-video?taskId=` → 代理上游 `GET {ZHIPU_API_BASE}/async-result/{id}` → 返回 `{ status: PROCESSING | SUCCESS | FAIL, videoUrl?, coverUrl? }`；前端每 3 秒轮询，最长 5 分钟（100 次），FAIL/超时显示错误与重试按钮；成功后右栏以 `<video controls>` 播放（含封面 poster），不写入历史记录；生成中按钮禁用防重复提交；与图像共用每 IP 频控。
+
 **连通性/配置验证方式**：应用启动时不预检上游；`GET /api/config` 仅检查 `ZHIPUAI_API_KEY` 是否已配置（不发起上游调用），前端据此显示配置引导。
 
 ### 2.3 输出 / 产物管理
 
-- 单次固定生成 1 张，在结果区大图展示；
+- 单次固定生成 1 张，在结果区大图展示；**历史记录只记录生成的图片**（视频生成不写历史）；历史图片点击放大后的灯箱支持**左右箭头浏览**（‹ 上一张 / › 下一张，键盘 ←/→ 同效，显示位置「N / 总数」）；
 - 结果区操作：**重新生成**（同参数再调一次，AI 生成结果天然有随机性）、**复制提示词**；
 - 会话内历史：`localStorage` 保存最多 30 条（模式、文本、提示词、图片 URL、时间），刷新不丢；页面提供历史卡片列表，点击可回看提示词；达到 30 条上限时新记录顶掉最早一条并显示「已达上限，可全部删除清理」提示；
 - 历史导出/导入：localStorage 按域名隔离，本地记录不会出现在线上域名；提供「导出」（下载 JSON）与「导入」（选择 JSON、校验去重合并）功能用于跨域名迁移历史；

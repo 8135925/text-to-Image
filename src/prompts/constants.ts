@@ -92,6 +92,16 @@ Constraints:
 One image explains only one core structure. Keep the main subject around 40%-60% of the canvas. Preserve at least 35% blank white space. Use at most 5-8 short handwritten Chinese labels. Do not write a title in the top-left corner. Do not write the structure type on the image. Do not make it a formal diagram, course slide, or dense explainer. It should be clear but not instructional, interesting but not childish, strange but clean.`;
 }
 
+// ============ 视频生成（cogvideox-flash，免费） ============
+
+/** 视频提示词：用户文本 + 手绘风格包装（CogVideoX prompt 上限 512 字符） */
+export function buildVideoPrompt(input: { text: string }): string {
+  const styleSuffix =
+    'Hand-drawn sketch style, black ink line art on clean white background, smooth gentle motion, minimalist, lots of negative space.';
+  const excerpt = [...input.text].slice(0, 420).join('');
+  return `${excerpt} ${styleSuffix}`.slice(0, 512);
+}
+
 // ============ 模式 B：手绘整页（ian-handdrawn-ppt） ============
 
 /** Deck Style Lock（源自 references/prompt-patterns.md，逐句保留） */

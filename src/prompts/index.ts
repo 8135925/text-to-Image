@@ -25,6 +25,7 @@ export {
   deriveTitle,
   buildXiaoheiPrompt,
   buildHanddrawnPrompt,
+  buildVideoPrompt,
 } from './constants';
 
 import type { GenerateInput } from './types';
