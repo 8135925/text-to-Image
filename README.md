@@ -22,9 +22,8 @@ npm run dev
 1. 导入仓库，框架预设 Vite（Build `npm run build`，Output `dist`），`api/` 目录自动识别为 Serverless Functions；
 2. 在 Settings → Environment Variables 配置：
    - `ZHIPUAI_API_KEY`（必填，智谱开放平台 API Key）
-   - `IMAGE_MODEL`（默认 `cogview-3-flash`）
-   - `ZHIPU_API_BASE`（默认 `https://open.bigmodel.cn/api/paas/v4`）
-   - `DOWNLOAD_HOST_ALLOWLIST`（默认 `open.bigmodel.cn,files.bigmodel.cn`）
+   - `IMAGE_MODEL`（默认 `cogview-3-flash`，可不配）
+   - `ZHIPU_API_BASE`（默认 `https://open.bigmodel.cn/api/paas/v4`，可不配）
 
 ## 环境变量说明
 

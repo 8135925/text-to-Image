@@ -1,6 +1,7 @@
-// 结果区：大图展示 + 重新生成 / 下载 PNG / 复制提示词（spec 2.3）
+// 结果区：大图展示（点击放大）+ 重新生成 / 复制提示词（spec 2.3）
 import { useState } from 'react';
 import type { GenerateSuccess } from '../prompts';
+import ImageLightbox from './ImageLightbox';
 
 interface Props {
   result: GenerateSuccess | null;
@@ -12,6 +13,7 @@ interface Props {
 export default function ResultPanel({ result, loading, error, onRetry }: Props) {
   const [imageBroken, setImageBroken] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const copyPrompt = async () => {
     if (!result) return;
@@ -22,16 +24,6 @@ export default function ResultPanel({ result, loading, error, onRetry }: Props) 
     } catch {
       setCopied(false);
     }
-  };
-
-  const download = () => {
-    if (!result) return;
-    const a = document.createElement('a');
-    a.href = `/api/download?url=${encodeURIComponent(result.imageUrl)}`;
-    a.download = `ian-image-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
   };
 
   if (loading) {
@@ -75,10 +67,19 @@ export default function ResultPanel({ result, loading, error, onRetry }: Props) 
           <img
             src={result.imageUrl}
             alt="生成结果"
+            title="点击放大查看"
+            onClick={() => setPreviewOpen(true)}
             onError={() => setImageBroken(true)}
           />
         )}
       </figure>
+      {previewOpen && !imageBroken && (
+        <ImageLightbox
+          src={result.imageUrl}
+          alt="生成结果"
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
       <div className="result-actions">
         <button
           type="button"
@@ -87,14 +88,6 @@ export default function ResultPanel({ result, loading, error, onRetry }: Props) 
           disabled={loading}
         >
           重新生成
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={download}
-          disabled={imageBroken}
-        >
-          下载 PNG
         </button>
         <button type="button" className="btn-secondary" onClick={copyPrompt}>
           {copied ? '已复制' : '复制提示词'}

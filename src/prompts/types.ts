@@ -22,12 +22,7 @@ export interface GenerateSuccess {
 
 export interface GenerateFailure {
   success: false;
-  code:
-    | 'E_INVALID_INPUT'
-    | 'E_NO_KEY'
-    | 'E_RATE_LIMIT'
-    | 'E_UPSTREAM'
-    | 'E_INVALID_URL';
+  code: 'E_INVALID_INPUT' | 'E_NO_KEY' | 'E_RATE_LIMIT' | 'E_UPSTREAM';
   message: string;
 }
 
@@ -38,7 +33,6 @@ export const ERROR_MESSAGES: Record<GenerateFailure['code'], string> = {
   E_NO_KEY: '服务端尚未配置 ZHIPUAI_API_KEY，请先在 Vercel 配置',
   E_RATE_LIMIT: '请求太频繁，请稍后再试',
   E_UPSTREAM: '图像生成失败，请稍后重试',
-  E_INVALID_URL: '下载链接不合法',
 };
 
 export const MODE_LABELS: Record<Mode, string> = {

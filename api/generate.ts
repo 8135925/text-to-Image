@@ -2,7 +2,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { json, clientIp } from './_shared';
 import { checkRateLimit } from './rate-limit';
-import { rememberImageHost } from './known-hosts';
 import {
   validateInput,
   buildPrompt,
@@ -98,8 +97,6 @@ export default async function handler(
         message: ERROR_MESSAGES.E_UPSTREAM,
       });
     }
-    // 记录上游实际使用的图片域名，供 /api/download 动态放行
-    rememberImageHost(imageUrl);
 
     // 6. 返回（含组装后的完整提示词，供「复制提示词」）
     return json(res, 200, {

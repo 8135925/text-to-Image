@@ -16,7 +16,6 @@ interface ApiHandler {
 const API_ROUTES: Record<string, string> = {
   '/api/generate': '/api/generate.ts',
   '/api/config': '/api/config.ts',
-  '/api/download': '/api/download.ts',
 };
 
 function devApiPlugin(): Plugin {

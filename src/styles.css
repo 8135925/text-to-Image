@@ -294,6 +294,7 @@ body {
   display: block;
   width: 100%;
   height: auto;
+  cursor: zoom-in;
   /* 系统唯一投影（spec 4 前端设计规范） */
   box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px;
 }
@@ -403,6 +404,7 @@ body {
   align-items: baseline;
   gap: 16px;
   margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
 .history-title {
@@ -410,6 +412,38 @@ body {
   font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.history-count {
+  margin-left: 10px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-secondary);
+}
+
+.history-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.history-file-input {
+  display: none;
+}
+
+.history-overflow {
+  margin: -6px 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(194, 69, 45, 0.08);
+  color: #a03d28;
+  font-size: 13.5px;
+}
+
+.history-import-msg {
+  margin: -6px 0 14px;
+  color: var(--action-blue);
+  font-size: 13.5px;
 }
 
 .btn-clear-history {
@@ -514,6 +548,15 @@ body {
 .history-actions {
   display: flex;
   gap: 16px;
+}
+
+.btn-delete {
+  color: var(--ink-secondary);
+  margin-left: auto;
+}
+
+.btn-delete:hover {
+  color: #c2452d;
 }
 
 .history-prompt {

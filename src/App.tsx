@@ -4,7 +4,12 @@ import Hero from './components/Hero';
 import ResultPanel from './components/ResultPanel';
 import HistoryGrid from './components/HistoryGrid';
 import Footer from './components/Footer';
-import { loadHistory, addHistory, clearHistory } from './lib/history';
+import {
+  ensureSeeded,
+  addHistory,
+  clearHistory,
+  deleteEntry,
+} from './lib/history';
 import type { HistoryEntry } from './lib/history';
 import {
   MODE_LABELS,
@@ -34,10 +39,12 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyOverflow, setHistoryOverflow] = useState(false);
   const lastRequestRef = useRef<RequestPayload | null>(null);
 
   useEffect(() => {
-    setHistory(loadHistory());
+    // 冷启动：localStorage 为空时从 seed-history.json 加载内置历史
+    ensureSeeded().then((list) => setHistory(list));
     fetch('/api/config')
       .then((r) => r.json())
       .then((c: ConfigInfo) => setConfig(c))
@@ -59,15 +66,15 @@ export default function App() {
       const data = (await res.json()) as GenerateResponse;
       if (data.success) {
         setResult(data);
-        setHistory(
-          addHistory({
-            mode: payload.mode,
-            text: payload.text,
-            prompt: data.prompt,
-            imageUrl: data.imageUrl,
-            createdAt: data.createdAt,
-          }),
-        );
+        const added = addHistory({
+          mode: payload.mode,
+          text: payload.text,
+          prompt: data.prompt,
+          imageUrl: data.imageUrl,
+          createdAt: data.createdAt,
+        });
+        setHistory(added.list);
+        setHistoryOverflow(added.overflow);
       } else {
         setError(data.message);
       }
@@ -98,6 +105,16 @@ export default function App() {
   const onClearHistory = useCallback(() => {
     clearHistory();
     setHistory([]);
+    setHistoryOverflow(false);
+  }, []);
+
+  const onImportHistory = useCallback((list: HistoryEntry[]) => {
+    setHistory(list);
+    setHistoryOverflow(false);
+  }, []);
+
+  const onDeleteEntry = useCallback((id: string) => {
+    setHistory(deleteEntry(id));
   }, []);
 
   const textLen = [...text].length;
@@ -179,6 +196,10 @@ export default function App() {
           history={history}
           onRegenerate={onHistoryRegenerate}
           onClearAll={onClearHistory}
+          onImport={onImportHistory}
+          onDelete={onDeleteEntry}
+          overflowNotice={historyOverflow}
+          onDismissOverflow={() => setHistoryOverflow(false)}
         />
       </main>
 

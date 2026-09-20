@@ -43,7 +43,7 @@
 
 ### 2.2 处理逻辑
 
-**整体链路**：React 表单 → `POST /api/generate`（Vercel Serverless Function）→ 组装提示词 → 调用智谱图像 API → 返回图片 URL → 前端展示；下载走 `GET /api/download` 服务端字节流代理（见 2.4）。
+**整体链路**：React 表单 → `POST /api/generate`（Vercel Serverless Function）→ 组装提示词 → 调用智谱图像 API → 返回图片 URL → 前端展示。
 
 **提示词组装器（本项目核心资产）：**
 
@@ -76,15 +76,16 @@
 5. 简单内存频控：每 IP 60 秒内最多 5 次，超出返回 E_RATE_LIMIT（serverless 实例重置导致频控归零可接受，不引入外部存储）；
 6. **函数超时**：`api/generate.ts` 中显式导出 `export const maxDuration = 30`（Vercel Hobby 计划函数上限 60s，30s 可用；不配置此项则默认 10s，超时形同虚设）。
 
-**下载代理（`GET /api/download`）**：上游图片 URL 与站点跨源，`<a download>` 属性跨源失效且 `fetch` 可能被 CORS 阻止，因此下载由服务端代理：校验 `url` 参数为 http/https 且主机名在白名单内 → 流式转发字节流并附 `Content-Disposition: attachment` 响应头。白名单默认内置 `sfile.chatglm.cn,file.chatglm.cn,open.bigmodel.cn,files.bigmodel.cn`（智谱 CogView 实际返回 `sfile.chatglm.cn`，已验证）；环境变量 `DOWNLOAD_HOST_ALLOWLIST` 为**追加**语义（默认域名始终放行，只增不减，防旧配置覆盖导致误拒）。防 SSRF。
-
 **连通性/配置验证方式**：应用启动时不预检上游；`GET /api/config` 仅检查 `ZHIPUAI_API_KEY` 是否已配置（不发起上游调用），前端据此显示配置引导。
 
 ### 2.3 输出 / 产物管理
 
 - 单次固定生成 1 张，在结果区大图展示；
-- 结果区操作：**重新生成**（同参数再调一次，AI 生成结果天然有随机性）、**下载 PNG**（走 `/api/download` 代理）、**复制提示词**；
-- 会话内历史：`localStorage` 保存最近 20 条（模式、文本、提示词、图片 URL、时间），刷新不丢；页面提供历史卡片列表，点击可回看提示词；
+- 结果区操作：**重新生成**（同参数再调一次，AI 生成结果天然有随机性）、**复制提示词**；
+- 会话内历史：`localStorage` 保存最多 30 条（模式、文本、提示词、图片 URL、时间），刷新不丢；页面提供历史卡片列表，点击可回看提示词；达到 30 条上限时新记录顶掉最早一条并显示「已达上限，可全部删除清理」提示；
+- 历史导出/导入：localStorage 按域名隔离，本地记录不会出现在线上域名；提供「导出」（下载 JSON）与「导入」（选择 JSON、校验去重合并）功能用于跨域名迁移历史；
+- 冷启动种子：`scripts/fetch-history.mjs`（`npm run fetch-history`）把导出的历史 JSON 中图片下载到 `public/history-images/` 并生成 `public/seed-history.json`（imageUrl 本地化，永不过期）；localStorage 为空时自动加载种子，实现内置历史记录；
+- 单条删除：历史卡片提供「删除」按钮，仅删该条；
 - 上游图片 URL 有效期不保证长期有效，历史条目加载失败时显示占位提示「图片链接已过期，可重新生成」；
 - 无服务端持久化、无用户系统、无跨设备同步（轻量原则，明确不做）。
 
@@ -123,11 +124,6 @@
 | E_NO_KEY | 503 | 服务端未配置 ZHIPUAI_API_KEY |
 | E_RATE_LIMIT | 429 | 触发每 IP 频控 |
 | E_UPSTREAM | 502 | 上游生成失败 / 超时 / 内容审核未通过 |
-| E_INVALID_URL | 400 | 仅 /api/download：url 非法或主机不在 allowlist |
-
-**GET /api/download?url={imageUrl}**
-
-- 校验 url 主机名 ∈ `DOWNLOAD_HOST_ALLOWLIST`，通过则流式返回图片字节流（`Content-Type: image/png`、`Content-Disposition: attachment`）；否则 E_INVALID_URL。
 - 若上游 URL 的实际域名不在默认 allowlist，在 Vercel 环境变量中追加即可，无需改代码。
 
 **GET /api/config**（首页加载时调用）
@@ -142,10 +138,9 @@
 | ZHIPUAI_API_KEY | 智谱开放平台 API Key | 无（必填） | Vercel → Settings → Environment Variables；本地 `.env.local` |
 | IMAGE_MODEL | 图像生成模型 ID | `cogview-3-flash` | 同上 |
 | ZHIPU_API_BASE | 智谱 API 基地址 | `https://open.bigmodel.cn/api/paas/v4` | 同上（可切换国际端点） |
-| DOWNLOAD_HOST_ALLOWLIST | 下载代理主机白名单（逗号分隔，**追加**语义，默认域名已内置） | 空（仅内置默认域名） | 同上 |
 
-- `.env.example`（仅含上述四个 key 的空模板与注释）提交入库；`.env.local`、`.env` 一律进 `.gitignore`；
-- 四个 key 均只在服务端（API Route）读取；前端如需展示模型名，通过 `GET /api/config` 获取，**禁止**在 Vite 侧使用 `VITE_` 前缀暴露任何密钥类变量；
+- `.env.example`（仅含上述三个 key 的空模板与注释）提交入库；`.env.local`、`.env` 一律进 `.gitignore`；
+- 三个 key 均只在服务端（API Route）读取；前端如需展示模型名，通过 `GET /api/config` 获取，**禁止**在 Vite 侧使用 `VITE_` 前缀暴露任何密钥类变量；
 - 注意：`IMAGE_MODEL` 切换（如 `cogview-4`）时，2.1 节的尺寸枚举是按 CogView-3-Flash 写的，换模型需**同步核对上游 size 支持集**并更新本文档（见验收标准 7 的限定语）。
 
 ## 4. 非功能需求
@@ -173,7 +168,7 @@
 
 - ZHIPUAI_API_KEY 只存在于服务端环境变量；构建产物（dist）中不得出现 key（验收时 grep 验证）；
 - 同源部署，API Route 不开放 CORS；
-- 下载代理强制主机白名单，杜绝 SSRF（url 只允许 http/https 且主机可解析）；
+- 下载代理强制主机白名单，杜绝 SSRF（url 只允许 http/https 且主机可解析）；（v5：下载功能已整体移除，此条不再适用）
 - 所有用户输入做长度与类型校验后再进入提示词（防提示词注入不做深度防御，仅截断长度——轻量原则）。
 
 **性能与可用性：**
@@ -188,8 +183,8 @@
 2. 模式 A：粘贴一段文本 → 点「开始生成」→ 10 秒内返回图片，且图片为纯白底、黑色手绘线稿、含小黑角色与中文标注；
 3. 「复制提示词」得到的文本包含 STYLE_DNA 关键要素（纯白背景 / 手绘线稿）与小黑 IP 描述（黑色实心、白点眼）；
 4. 连续点击「重新生成」3 次，均正常返回且结果区更新，无重复提交导致的并发错乱；
-5. 「下载」得到可打开的 PNG 文件，且请求路径为 `/api/download`（跨源场景可用）；传入白名单外 url 时返回 400；
-6. 浏览器 DevTools Network 面板中，API 类请求只见 `/api/generate`、`/api/config`、`/api/download`——除结果图片本身的 `<img>` 加载外，无任何携带密钥或直连生成接口的请求；`dist` 构建产物 grep 不到 API Key；
+5. （v5：下载功能已移除，原「下载得到可打开 PNG」验收项废止；如需保存图片，用户可右键图片另存为）；
+6. 浏览器 DevTools Network 面板中，API 类请求只见 `/api/generate`、`/api/config`——除结果图片本身的 `<img>` 加载外，无任何携带密钥或直连生成接口的请求；`dist` 构建产物 grep 不到 API Key；
 7. 在 Vercel 将 `IMAGE_MODEL` 改为 `cogview-4` 并重新部署后，页面显示的模型名随之变化，代码零改动（前提：已按第 3 节核对 cogview-4 的 size 支持集并按需更新尺寸枚举）；
 8. 同一 IP 60 秒内第 6 次请求返回 429 与中文提示「请求太频繁，请稍后再试」；
 9. 拔网线 / 上游返回错误时，界面显示可读错误信息并提供「重试」按钮，不崩溃；
@@ -206,7 +201,6 @@
 Text-to-Image/
 ├── api/
 │   ├── generate.ts        # POST /api/generate（maxDuration = 30）
-│   ├── download.ts        # GET /api/download（白名单校验 + 字节流代理）
 │   └── config.ts          # GET /api/config
 ├── src/
 │   ├── prompts/           # 提示词常量与 buildPrompt()
@@ -247,5 +241,5 @@ Text-to-Image/
 
 | # | 事项 | 影响 | 当前假设 |
 |---|------|------|---------|
-| T5 | 上游返回图片 URL 的实际域名与有效期 | 下载代理 `DOWNLOAD_HOST_ALLOWLIST` 默认值、历史过期提示文案 | 已验证为 `sfile.chatglm.cn`，已列入默认白名单；如后续上游换域名，按错误提示在环境变量追加即可 |
+| T5 | 上游返回图片 URL 的实际域名与有效期 | 历史过期提示文案（下载代理已随 v5 移除） | 已验证为 `sfile.chatglm.cn`，历史图过期占位提示已实现 |
 | T6 | CogView-3-Flash 对长中文提示词（模式 B 模板含完整 style lock，约 400–600 字）的遵循度 | 模式 B 出图质量 | 开发期用 2–3 个 archetype 冒烟验证；若遵循度差，压缩 style lock 为语料允许的 compact 版本 |
